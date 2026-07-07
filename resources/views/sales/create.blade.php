@@ -339,5 +339,22 @@
                 }
             }
         });
+        // 9. OTOMATIS POP-UP CETAK STRUK BILA SESSION TERSEDIA
+        @if(session('print_url'))
+            // Membuka jendela cetak struk di tab baru secara otomatis
+            const printWindow = window.open("{{ session('print_url') }}", '_blank');
+            
+            // Fokuskan ke jendela cetak jika diblokir oleh pop-up blocker browser
+            if (printWindow) {
+                printWindow.focus();
+            } else {
+                alert('🚨 Gagal membuka cetak struk otomatis! Mohon izinkan izin "Pop-up" pada browser Anda.');
+            }
+        @endif
+
+        // Notifikasi Sukses Tambahan (Opsional)
+        @if(session('success'))
+            alert("{{ session('success') }}");
+        @endif
     </script>
 </x-app-layout>

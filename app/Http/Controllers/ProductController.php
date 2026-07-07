@@ -11,7 +11,6 @@ class ProductController extends Controller
     // 1. HALAMAN INDEX: Menampilkan Semua Produk
     public function index()
     {
-        // Hanya memuat relasi category karena data stock ada di tabel products itu sendiri
         $products = Product::with('category')->get();
         return view('products.index', compact('products'));
     }
@@ -24,7 +23,6 @@ class ProductController extends Controller
     }
 
     // 3. PROSES STORE: Menyimpan Data Produk Baru
-// 3. PROSES STORE: Menyimpan Data Produk Baru
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -39,14 +37,12 @@ class ProductController extends Controller
             'image_url'      => 'nullable|url',
         ]);
 
-        // Ambil image_url terlebih dahulu, lalu hapus dari array validated
         $imageUrl = $validated['image_url'] ?? null;
         unset($validated['image_url']);
 
-        // Simpan data produk bersih tanpa kolom image_url ke database
+        // Data stok sekarang otomatis aman masuk karena model fillable sudah diperbaiki
         $product = Product::create($validated);
 
-        // Jika user mengisi link gambar, perintahkan Spatie menyimpannya ke tabel media terpisah
         if ($imageUrl) {
             $product->addMediaFromUrl($imageUrl)->toMediaCollection('product_images');
         }
@@ -61,7 +57,7 @@ class ProductController extends Controller
         return view('products.edit', compact('product', 'categories'));
     }
 
-// 5. PROSES UPDATE: Menyimpan Perubahan Data Produk
+    // 5. PROSES UPDATE: Menyimpan Perubahan Data Produk (Stock Opname)
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
@@ -70,25 +66,20 @@ class ProductController extends Controller
             'category_id'    => 'required|exists:categories,id',
             'purchase_price' => 'required|numeric|min:0',
             'selling_price'  => 'required|numeric|min:0',
-            'stock'          => 'required|integer|min:0',
+            'stock'          => 'required|integer|min:0', // Nilai stock opname baru divalidasi di sini
             'min_stock'      => 'required|integer|min:0',
             'max_stock'      => 'required|integer|min:0',
             'image_url'      => 'nullable|url',
         ]);
 
-        // Ambil image_url terlebih dahulu, lalu hapus dari array validated
         $imageUrl = $validated['image_url'] ?? null;
         unset($validated['image_url']);
 
-        // Perbarui data utama produk ke tabel products
+        // Melakukan update secara langsung ke tabel database
         $product->update($validated);
 
-        // Jika user mengirimkan URL baru
         if ($imageUrl) {
-            // Hapus gambar lama yang tersimpan di Spatie agar tidak menumpuk
             $product->clearMediaCollection('product_images');
-            
-            // Simpan gambar baru lewat Spatie
             $product->addMediaFromUrl($imageUrl)->toMediaCollection('product_images');
         }
 

@@ -69,6 +69,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['role:Admin,Kasir'])->group(function () {
         Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
         Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+        Route::get('/sales/{id}/print', [SaleController::class, 'printReceipt'])->name('sales.print');
     });
 
 });

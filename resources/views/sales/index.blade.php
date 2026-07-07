@@ -8,9 +8,25 @@
 
     <div class="py-12 bg-slate-50 min-h-[calc(100vh-65px)]">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            @if(session('success'))
-                <div class="mb-4 p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 rounded-r-xl text-sm font-medium">✨ {{ session('success') }}</div>
-            @endif
+            
+            {{-- ========================================================= --}}
+            {{-- KODE INTEGRASI OTOMATIS (Sudah Berada di Posisi yang Benar) --}}
+            {{-- ========================================================= --}}
+@if(session('print_url'))
+    <script>
+        // Menggunakan window.onload agar browser menyelesaikan load halaman index terlebih dahulu
+        window.onload = function() {
+            setTimeout(function() {
+                var printWindow = window.open("{{ session('print_url') }}", "_blank");
+                
+                // Cek jika diblokir oleh browser, berikan peringatan ke kasir
+                if (!printWindow || printWindow.closed || typeof printWindow.closed == 'undefined') {
+                    alert('Gagal membuka struk otomatis! Mohon izinkan Pop-up pada browser Anda, lalu klik tombol "Cetak Struk" manual pada tabel.');
+                }
+            }, 500); // Ditunda 0.5 detik agar browser siap
+        };
+    </script>
+@endif
 
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <table class="w-full text-left border-collapse text-sm">
@@ -23,6 +39,7 @@
                             <th class="py-4 px-6 text-right">Uang Bayar</th>
                             <th class="py-4 px-6 text-right">Kembalian</th>
                             <th class="py-4 px-6">Kasir</th>
+                            <th class="py-4 px-6 text-center">Aksi</th> {{-- Tambah Kolom Aksi --}}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -35,9 +52,18 @@
                                 <td class="py-4 px-6 text-right text-emerald-600 font-medium">Rp {{ number_format($s->paid_amount, 0, ',', '.') }}</td>
                                 <td class="py-4 px-6 text-right text-amber-600 font-medium">Rp {{ number_format($s->change_amount, 0, ',', '.') }}</td>
                                 <td class="py-4 px-6 font-medium text-slate-500">👤 {{ $s->user->name }}</td>
+                                
+                                {{-- ========================================================= --}}
+                                {{-- TOMBOL CETAK ULANG MANUVAL DI SETIAP BARIS TRANSAKSI --}}
+                                {{-- ========================================================= --}}
+                                <td class="py-4 px-6 text-center">
+                                    <a href="{{ route('sales.print', $s->id) }}" target="_blank" class="inline-flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold py-1 px-3 rounded-lg text-xs transition duration-150 shadow-sm border border-blue-200">
+                                        🖨️ Cetak Struk
+                                    </a>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="py-8 text-center text-slate-400">Belum ada transaksi kasir harian yang tercatat.</td></tr>
+                            <tr><td colspan="8" class="py-8 text-center text-slate-400">Belum ada transaksi kasir harian yang tercatat.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

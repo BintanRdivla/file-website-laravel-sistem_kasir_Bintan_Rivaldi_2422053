@@ -34,8 +34,11 @@ class SaleController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
         ]);
+        
+        // Buat variabel penampung di luar scope transaction closure
+        $createdSale = null;
 
-        return DB::transaction(function () use ($request) {
+        DB::transaction(function () use ($request, &$createdSale) {
             $subtotal = 0;
             $itemsToProcess = [];
 
@@ -43,11 +46,8 @@ class SaleController extends Controller
             foreach ($request->items as $itemData) {
                 $product = Product::findOrFail($itemData['product_id']);
                 
-                // Cek apakah stok digudang mencukupi
                 if ($product->stock < $itemData['quantity']) {
-                    return redirect()->back()->withErrors([
-                        'items' => "Stok untuk produk '{$product->name}' tidak mencukupi! Sisa stok: {$product->stock}"
-                    ])->withInput();
+                    throw new \Exception("Stok untuk produk '{$product->name}' tidak mencukupi!");
                 }
 
                 $itemSubtotal = $product->selling_price * $itemData['quantity'];
@@ -62,22 +62,19 @@ class SaleController extends Controller
             }
 
             $discount = $request->discount ?? 0;
-            $tax = ($subtotal - $discount) * 0.11; // PPN 11% sesuai dokumen lengkap
+            $tax = ($subtotal - $discount) * 0.11; 
             $totalAmount = ($subtotal - $discount) + $tax;
             $changeAmount = $request->paid_amount - $totalAmount;
 
-            // Proteksi jika uang yang dibayarkan kurang dari total belanja
             if ($request->paid_amount < $totalAmount) {
-                return redirect()->back()->withErrors([
-                    'paid_amount' => "Uang pembayaran kurang! Total tagihan: Rp " . number_format($totalAmount, 0, ',', '.')
-                ])->withInput();
+                throw new \Exception("Uang pembayaran kurang!");
             }
 
             // 2. GENERATE INVOICE NUMBER
             $invoiceNumber = 'INV-' . date('Ymd') . '-' . str_pad(Sale::count() + 1, 4, '0', STR_PAD_LEFT);
 
             // 3. SIMPAN INDUK TRANSAKSI PENJUALAN
-            $sale = Sale::create([
+            $createdSale = Sale::create([
                 'invoice_number' => $invoiceNumber,
                 'customer_name' => $request->customer_name ?? 'General Customer',
                 'customer_phone' => $request->customer_phone,
@@ -94,27 +91,38 @@ class SaleController extends Controller
             // 4. SIMPAN DETAIL ITEMS, KURANGI STOK, & CATAT LOG
             foreach ($itemsToProcess as $proc) {
                 SaleItem::create([
-                    'sale_id' => $sale->id,
+                    'sale_id' => $createdSale->id,
                     'product_id' => $proc['product']->id,
                     'quantity' => $proc['quantity'],
                     'selling_price' => $proc['selling_price'],
                     'subtotal' => $proc['subtotal']
                 ]);
 
-                // Potong stok produk master
                 $proc['product']->decrement('stock', $proc['quantity']);
 
-                // Masuk ke Log Audit Trail Advanced Stock yang kita buat kemarin
                 StockLog::create([
                     'product_id' => $proc['product']->id,
-                    'quantity' => -$proc['quantity'], // Nilai minus karena barang keluar
+                    'quantity' => -$proc['quantity'],
                     'type' => 'reduce',
                     'reason' => "Penjualan Kasir (Nota: {$invoiceNumber})",
                     'user_id' => Auth::id()
                 ]);
             }
-
-            return redirect()->route('sales.index')->with('success', "Transaksi {$invoiceNumber} berhasil diselesaikan!");
         });
+
+        // Keluarkan return redirect ke luar fungsi closure transaksi agar aman
+// ... (Kode transaksi di bagian atas tetap utuh) ...
+
+        // PERBAIKAN: Redirect kembali ke halaman kasir agar siap melayani transaksi berikutnya
+        return redirect()->route('sales.create')
+            ->with('success', "Transaksi {$createdSale->invoice_number} berhasil diselesaikan!")
+            ->with('print_url', route('sales.print', $createdSale->id)); // 'sales.print' disesuaikan dengan nama route cetak Anda
+    }
+
+    // Tampilkan Halaman Print Struk
+    public function printReceipt($id)
+    {
+        $sale = Sale::with('saleItems.product')->findOrFail($id); 
+        return view('sales.receipt', compact('sale'));
     }
 }
